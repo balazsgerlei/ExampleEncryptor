@@ -6,8 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.biometric.BiometricManager
+import androidx.biometric.AuthenticationRequest
+import androidx.biometric.AuthenticationResult
+import androidx.biometric.AuthenticationResultLauncher
 import androidx.biometric.BiometricPrompt
+import androidx.biometric.registerForAuthenticationResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import com.example.encryptor.ui.MainViewModel
 import com.example.encryptor.ui.theme.ExampleEncryptorTheme
 
@@ -53,19 +55,45 @@ class MainActivity : AppCompatActivity() {
                 var requireUserAuthenticationChecked by remember { mutableStateOf(false) }
                 val encryptedText by viewModel.encryptedText.collectAsState("")
 
+                val authenticationResultLauncher = registerForAuthenticationResult { result ->
+                    when(result) {
+                        is AuthenticationResult.Error -> {
+                            viewModel.onAuthenticationError(result.errorCode, result.errString)
+                        }
+                        is AuthenticationResult.Success -> {
+                            if (plainText != null && plainText.isNotBlank()) {
+                                Toast.makeText(this@MainActivity,
+                                    "Authentication for ENCRYPTION succeeded",
+                                    Toast.LENGTH_SHORT)
+                                    .show()
+                                viewModel.onAuthenticationForEncryptionSucceeded(
+                                    plainText, requireUserAuthenticationChecked, result.crypto
+                                )
+                            } else {
+                                Toast.makeText(this@MainActivity,
+                                    "Authentication for DECRYPTION succeeded",
+                                    Toast.LENGTH_SHORT)
+                                    .show()
+                                viewModel.onAuthenticationForDecryptionSucceeded(
+                                    requireUserAuthenticationChecked, result.crypto
+                                )
+                            }
+                        }
+                    }
+                }
+
                 LaunchedEffect(Unit) {
                     viewModel.eventChannel.collect { event ->
                         when(event) {
                             is MainViewModel.UiEvent.ShowBiometricPromptForEncryption -> {
                                 showBiometricPromptForEncryption(
-                                    plainText,
-                                    requireUserAuthenticationChecked,
+                                    authenticationResultLauncher,
                                     cryptoObject = event.cryptoObject
                                 )
                             }
                             is MainViewModel.UiEvent.ShowBiometricPromptForDecryption -> {
                                 showBiometricPromptForDecryption(
-                                    requireUserAuthenticationChecked,
+                                    authenticationResultLauncher,
                                     cryptoObject = event.cryptoObject
                                 )
                             }
@@ -253,91 +281,38 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun createBiometricPrompt(
-        authenticationCallback: BiometricPrompt.AuthenticationCallback
-    ) = BiometricPrompt(
-        this,
-        ContextCompat.getMainExecutor(this),
-        authenticationCallback
+    private fun createAuthenticationRequest(
+        title: String,
+        cryptoObject: BiometricPrompt.CryptoObject? = null,
+    ) = AuthenticationRequest.Biometric.Builder(title,
+        authFallback = AuthenticationRequest.Biometric.Fallback.NegativeButton("Cancel")
     )
-
-    private fun createPromptInfo(allowedAuthenticators: Int) = BiometricPrompt.PromptInfo.Builder()
-        .setTitle("Biometric login for my app")
-        .setSubtitle("Log in using your biometric credential")
-        .setAllowedAuthenticators(allowedAuthenticators)
-        .setNegativeButtonText("Cancel")
+        .apply {
+            if (cryptoObject != null) {
+                setMinStrength(AuthenticationRequest.Biometric.Strength.Class3(cryptoObject))
+            } else {
+                setMinStrength(AuthenticationRequest.Biometric.Strength.Class2)
+            }
+        }
         .build()
 
     private fun showBiometricPromptForEncryption(
-        plainText: String,
-        requireUserAuthentication: Boolean,
+        authenticationResultLauncher: AuthenticationResultLauncher,
         cryptoObject: BiometricPrompt.CryptoObject? = null
     ) {
-        val biometricPrompt = createBiometricPrompt(authenticationCallback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationError(errorCode: Int,
-                                               errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                viewModel.onAuthenticationError(errorCode, errString)
-            }
-
-            override fun onAuthenticationSucceeded(
-                result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                Toast.makeText(this@MainActivity,
-                    "Authentication for ENCRYPTION succeeded",
-                    Toast.LENGTH_SHORT)
-                    .show()
-                viewModel.onAuthenticationForEncryptionSucceeded(plainText, requireUserAuthentication, result.cryptoObject)
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                viewModel.onAuthenticationFailed()
-            }
-        })
-
-        if (cryptoObject != null) {
-            val promptInfo = createPromptInfo(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            biometricPrompt.authenticate(promptInfo, cryptoObject)
-        } else {
-            val promptInfo = createPromptInfo(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            biometricPrompt.authenticate(promptInfo)
+        val title = "Authenticate for encryption"
+        createAuthenticationRequest(title, cryptoObject).let {
+            authenticationResultLauncher.launch(it)
         }
     }
 
     private fun showBiometricPromptForDecryption(
-        requireUserAuthentication: Boolean,
+        authenticationResultLauncher: AuthenticationResultLauncher,
         cryptoObject: BiometricPrompt.CryptoObject? = null
     ) {
-        val biometricPrompt = createBiometricPrompt(authenticationCallback = object : BiometricPrompt.AuthenticationCallback() {
-            override fun onAuthenticationError(errorCode: Int,
-                                               errString: CharSequence) {
-                super.onAuthenticationError(errorCode, errString)
-                viewModel.onAuthenticationError(errorCode, errString)
-            }
-
-            override fun onAuthenticationSucceeded(
-                result: BiometricPrompt.AuthenticationResult) {
-                super.onAuthenticationSucceeded(result)
-                Toast.makeText(this@MainActivity,
-                    "Authentication for DECRYPTION succeeded",
-                    Toast.LENGTH_SHORT)
-                    .show()
-                viewModel.onAuthenticationForDecryptionSucceeded(requireUserAuthentication, result.cryptoObject)
-            }
-
-            override fun onAuthenticationFailed() {
-                super.onAuthenticationFailed()
-                viewModel.onAuthenticationFailed()
-            }
-        })
-
-        if (cryptoObject != null) {
-            val promptInfo = createPromptInfo(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            biometricPrompt.authenticate(promptInfo, cryptoObject)
-        } else {
-            val promptInfo = createPromptInfo(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK)
-            biometricPrompt.authenticate(promptInfo)
+        val title = "Authenticate for decryption"
+        createAuthenticationRequest(title, cryptoObject).let {
+            authenticationResultLauncher.launch(it)
         }
     }
 }
