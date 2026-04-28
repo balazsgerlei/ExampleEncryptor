@@ -202,6 +202,7 @@ class MainActivity : AppCompatActivity() {
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
                     ) {
                         Switch(
+                            enabled = plainText.isNotBlank(),
                             checked = requireUnlockedDeviceChecked,
                             onCheckedChange = onRequireUnlockedDeviceChecked,
                         )
@@ -234,6 +235,7 @@ class MainActivity : AppCompatActivity() {
                         modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
                     ) {
                         Switch(
+                            enabled = plainText.isNotBlank(),
                             checked = requireUserAuthenticationChecked,
                             onCheckedChange = onRequireUserAuthenticationChecked,
                         )
@@ -260,7 +262,7 @@ class MainActivity : AppCompatActivity() {
                         Text("Encrypt")
                     }
                     ElevatedButton (
-                        enabled = encryptedText != null && encryptedText.isNotBlank(),
+                        enabled = encryptedText?.isNotBlank() == true,
                         onClick = onDecryptClick,
                         modifier = Modifier
                             .padding(start = 16.dp, top = 8.dp, end = 16.dp)
