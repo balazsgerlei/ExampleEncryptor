@@ -177,6 +177,11 @@ class MainViewModel: ViewModel() {
         _eventChannel.send(UiEvent.AuthenticationFailed)
     }
 
+    fun deleteKeys() {
+        deleteSecretKey(KEY_ALIAS_REQUIRING_AUTHENTICATION)
+        deleteSecretKey(KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION)
+    }
+
     private fun tryCreatingCryptoObject(
         requireUnlockedDevice: Boolean,
         requireUserAuthentication: Boolean,
@@ -327,6 +332,8 @@ class MainViewModel: ViewModel() {
         }
 
     private fun getSecretKey(alias: String) = keystore.getKey(alias, null) as? SecretKey
+
+    private fun deleteSecretKey(alias: String) = keystore.deleteEntry(alias)
 
     private fun createCipher(): Cipher? {
         try {

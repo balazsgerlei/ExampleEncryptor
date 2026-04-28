@@ -127,7 +127,10 @@ class MainActivity : AppCompatActivity() {
                     useCryptoObjectChecked = useCryptoObjectChecked,
                     onUseCryptoObjectCheckedChange = { useCryptoObjectChecked = it },
                     requireUnlockedDeviceChecked = requireUnlockedDeviceChecked,
-                    onRequireUnlockedDeviceChecked = { requireUnlockedDeviceChecked = it },
+                    onRequireUnlockedDeviceChecked = {
+                        requireUnlockedDeviceChecked = it
+                        viewModel.deleteKeys()
+                    },
                     requireUserAuthenticationChecked = requireUserAuthenticationChecked,
                     onRequireUserAuthenticationChecked = { requireUserAuthenticationChecked = it },
                     onEncryptClick = {
