@@ -11,6 +11,7 @@ import androidx.biometric.AuthenticationRequest
 import androidx.biometric.AuthenticationResult
 import androidx.biometric.AuthenticationResultLauncher
 import androidx.biometric.BiometricPrompt
+import androidx.biometric.compose.rememberAuthenticationLauncher
 import androidx.biometric.registerForAuthenticationResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -57,7 +58,7 @@ class MainActivity : AppCompatActivity() {
                 var requireUserAuthenticationChecked by remember { mutableStateOf(false) }
                 val encryptedText by viewModel.encryptedText.collectAsState("")
 
-                val authenticationResultLauncher = registerForAuthenticationResult { result ->
+                val authenticationResultLauncher = rememberAuthenticationLauncher { result ->
                     when(result) {
                         is AuthenticationResult.Error -> {
                             viewModel.onAuthenticationError(result.errorCode, result.errString)
@@ -313,17 +314,15 @@ class MainActivity : AppCompatActivity() {
     private fun createAuthenticationRequest(
         title: String,
         cryptoObject: BiometricPrompt.CryptoObject? = null,
-    ) = AuthenticationRequest.Biometric.Builder(title,
+    ) = AuthenticationRequest.biometricRequest(title,
         authFallback = AuthenticationRequest.Biometric.Fallback.NegativeButton("Cancel")
-    )
-        .apply {
-            if (cryptoObject != null) {
-                setMinStrength(AuthenticationRequest.Biometric.Strength.Class3(cryptoObject))
-            } else {
-                setMinStrength(AuthenticationRequest.Biometric.Strength.Class2)
-            }
+    ) {
+        if (cryptoObject != null) {
+            setMinStrength(AuthenticationRequest.Biometric.Strength.Class3(cryptoObject))
+        } else {
+            setMinStrength(AuthenticationRequest.Biometric.Strength.Class2)
         }
-        .build()
+    }
 
     private fun showBiometricPromptForEncryption(
         authenticationResultLauncher: AuthenticationResultLauncher,

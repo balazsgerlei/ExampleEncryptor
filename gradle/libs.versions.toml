@@ -4,7 +4,7 @@ kotlin = "2.2.10"
 coreKtx = "1.18.0"
 lifecycleRuntimeKtx = "2.10.0"
 appcompat = "1.7.1"
-biometric = "1.4.0-alpha04"
+biometric = "1.4.0-alpha05"
 activityCompose = "1.13.0"
 composeBom = "2026.04.01"
 junit = "4.13.2"
@@ -17,6 +17,7 @@ androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecyc
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
+androidx-biometric-compose = { group = "androidx.biometric", name = "biometric-compose", version.ref = "biometric" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
