@@ -1,5 +1,6 @@
 package com.example.encryptor
 
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
             ExampleEncryptorTheme {
                 var plainText by rememberSaveable { mutableStateOf("Test") }
                 var useCryptoObjectChecked by remember { mutableStateOf(false) }
+                var requireUnlockedDeviceChecked by remember { mutableStateOf(false) }
                 var requireUserAuthenticationChecked by remember { mutableStateOf(false) }
                 val encryptedText by viewModel.encryptedText.collectAsState("")
 
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity() {
                             is MainViewModel.UiEvent.ShowBiometricPromptForEncryption -> {
                                 showBiometricPromptForEncryption(
                                     plainText,
+                                    requireUnlockedDeviceChecked,
                                     requireUserAuthenticationChecked,
                                     cryptoObject = event.cryptoObject
                                 )
@@ -123,16 +126,20 @@ class MainActivity : AppCompatActivity() {
                     onClearPlainTextClicked = { plainText = "" },
                     useCryptoObjectChecked = useCryptoObjectChecked,
                     onUseCryptoObjectCheckedChange = { useCryptoObjectChecked = it },
+                    requireUnlockedDeviceChecked = requireUnlockedDeviceChecked,
+                    onRequireUnlockedDeviceChecked = { requireUnlockedDeviceChecked = it },
                     requireUserAuthenticationChecked = requireUserAuthenticationChecked,
                     onRequireUserAuthenticationChecked = { requireUserAuthenticationChecked = it },
                     onEncryptClick = {
                         viewModel.requestEncryption(
+                            requireUnlockedDeviceChecked,
                             useCryptoObjectChecked,
                             requireUserAuthenticationChecked
                         )
                     },
                     onDecryptClick = {
                         viewModel.requestDecryption(
+                            requireUnlockedDeviceChecked,
                             useCryptoObjectChecked,
                             requireUserAuthenticationChecked
                         )
@@ -151,6 +158,8 @@ class MainActivity : AppCompatActivity() {
         onClearPlainTextClicked: () -> Unit,
         useCryptoObjectChecked: Boolean,
         onUseCryptoObjectCheckedChange: ((Boolean) -> Unit)?,
+        requireUnlockedDeviceChecked: Boolean,
+        onRequireUnlockedDeviceChecked: ((Boolean) -> Unit)?,
         requireUserAuthenticationChecked: Boolean,
         onRequireUserAuthenticationChecked: ((Boolean) -> Unit)?,
         onEncryptClick: () -> Unit,
@@ -184,6 +193,23 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    Row (
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
+                    ) {
+                        Switch(
+                            checked = requireUnlockedDeviceChecked,
+                            onCheckedChange = onRequireUnlockedDeviceChecked,
+                        )
+                        Text(
+                            text = "Require Unlocked Device",
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 8.dp)
+                        )
+                    }
+                }
                 Row (
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)
@@ -269,6 +295,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showBiometricPromptForEncryption(
         plainText: String,
+        requireUnlockedDevice: Boolean,
         requireUserAuthentication: Boolean,
         cryptoObject: BiometricPrompt.CryptoObject? = null
     ) {
@@ -286,7 +313,7 @@ class MainActivity : AppCompatActivity() {
                     "Authentication for ENCRYPTION succeeded",
                     Toast.LENGTH_SHORT)
                     .show()
-                viewModel.onAuthenticationForEncryptionSucceeded(plainText, requireUserAuthentication, result.cryptoObject)
+                viewModel.onAuthenticationForEncryptionSucceeded(plainText, requireUnlockedDevice, requireUserAuthentication, result.cryptoObject)
             }
 
             override fun onAuthenticationFailed() {

@@ -1,5 +1,6 @@
 package com.example.encryptor.ui
 
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
@@ -62,11 +63,13 @@ class MainViewModel: ViewModel() {
     }
 
     fun requestEncryption(
+        requireUnlockedDevice: Boolean,
         useCryptoObject: Boolean,
         requireUserAuthentication: Boolean,
     ) {
         if (useCryptoObject) {
             tryCreatingCryptoObject(
+                requireUnlockedDevice,
                 requireUserAuthentication,
                 cipherOperationMode = Cipher.ENCRYPT_MODE,
                 ivParameterSpec = null,
@@ -92,11 +95,13 @@ class MainViewModel: ViewModel() {
     }
 
     fun requestDecryption(
+        requireUnlockedDevice: Boolean,
         useCryptoObject: Boolean,
         requireUserAuthentication: Boolean,
     ) {
         if (useCryptoObject) {
             tryCreatingCryptoObject(
+                requireUnlockedDevice,
                 requireUserAuthentication,
                 cipherOperationMode = Cipher.DECRYPT_MODE,
                 ivParameterSpec = IvParameterSpec(ivUsedForEncryption),
@@ -127,6 +132,7 @@ class MainViewModel: ViewModel() {
 
     fun onAuthenticationForEncryptionSucceeded(
         plainText: String,
+        requireUnlockedDevice: Boolean,
         requireUserAuthentication: Boolean,
         cryptoObjectFromResult: BiometricPrompt.CryptoObject? = null
     ) {
@@ -141,7 +147,7 @@ class MainViewModel: ViewModel() {
             }
             cryptoObject = null
         } else {
-            encryptByCreatingNewCipher(plainText, requireUserAuthentication)
+            encryptByCreatingNewCipher(plainText, requireUnlockedDevice, requireUserAuthentication)
         }
     }
 
@@ -172,6 +178,7 @@ class MainViewModel: ViewModel() {
     }
 
     private fun tryCreatingCryptoObject(
+        requireUnlockedDevice: Boolean,
         requireUserAuthentication: Boolean,
         cipherOperationMode: Int,
         ivParameterSpec: IvParameterSpec?,
@@ -179,8 +186,8 @@ class MainViewModel: ViewModel() {
         onCannotCreateCryptoObject: () -> Unit,
     ) {
         val cipher = createCipher()
-        val secretKeyAlias = if(requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
-        val secretKey = getSecretKey(secretKeyAlias) ?: generateKey(secretKeyAlias, requireUserAuthentication)
+        val secretKeyAlias = if (requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
+        val secretKey = getSecretKey(secretKeyAlias) ?: generateKey(secretKeyAlias, requireUnlockedDevice, requireUserAuthentication)
         if (cipher != null && initCipher(cipher, secretKey, cipherOperationMode, ivParameterSpec)) {
             onCryptoObjectCreated(BiometricPrompt.CryptoObject(cipher))
         } else {
@@ -193,7 +200,7 @@ class MainViewModel: ViewModel() {
         requireUserAuthentication: Boolean,
         cipherFromResult: Cipher?,
     ) {
-        val secretKeyAlias = if(requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
+        val secretKeyAlias = if (requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
         val secretKey = getSecretKey(secretKeyAlias)
         if (cipherFromResult != null && secretKey != null) {
             ivUsedForEncryption = cipherFromResult.iv
@@ -213,13 +220,13 @@ class MainViewModel: ViewModel() {
 
     private fun encryptByCreatingNewCipher(
         plainText: String,
+        requireUnlockedDevice: Boolean,
         requireUserAuthentication: Boolean,
     ) {
         val cipher = createCipher()
-        val secretKeyAlias = if(requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
-        val secretKey = getSecretKey(secretKeyAlias) ?: generateKey(secretKeyAlias)
-        if (cipher != null && secretKey != null
-            && initCipher(cipher, secretKey, Cipher.ENCRYPT_MODE)) {
+        val secretKeyAlias = if (requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
+        val secretKey = getSecretKey(secretKeyAlias) ?: generateKey(secretKeyAlias, requireUnlockedDevice)
+        if (cipher != null && initCipher(cipher, secretKey, Cipher.ENCRYPT_MODE)) {
             ivUsedForEncryption = cipher.iv
             encrypt(plainText.encodeToByteArray(), cipher).let {
                 _encryptedBytes.value = it
@@ -239,7 +246,7 @@ class MainViewModel: ViewModel() {
         requireUserAuthentication: Boolean,
         cipherFromResult: Cipher?
     ) {
-        val secretKeyAlias = if(requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
+        val secretKeyAlias = if (requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
         val secretKey = getSecretKey(secretKeyAlias)
         if (cipherFromResult != null && secretKey != null) {
             val decryptedBytes = decrypt(encryptedBytes, cipherFromResult)
@@ -260,7 +267,7 @@ class MainViewModel: ViewModel() {
         requireUserAuthentication: Boolean,
     ) {
         val cipher = createCipher()
-        val secretKeyAlias = if(requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
+        val secretKeyAlias = if (requireUserAuthentication) KEY_ALIAS_REQUIRING_AUTHENTICATION else KEY_ALIAS_WITHOUT_REQUIRING_AUTHENTICATION
         val secretKey = getSecretKey(secretKeyAlias)
         if (cipher != null && secretKey != null
             && initCipher(cipher, secretKey, Cipher.DECRYPT_MODE, IvParameterSpec(ivUsedForEncryption))) {
@@ -279,12 +286,18 @@ class MainViewModel: ViewModel() {
 
     private fun createKeyGenParameterSpec(
         alias: String,
+        unlockedDeviceRequired: Boolean,
         userAuthenticationRequired: Boolean
     ) = KeyGenParameterSpec.Builder(
         alias,
         KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
         .setBlockModes(BLOCK_MODE)
         .setEncryptionPaddings(ENCRYPTION_PADDING)
+        .apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                setUnlockedDeviceRequired(unlockedDeviceRequired)
+            }
+        }
         .setUserAuthenticationRequired(userAuthenticationRequired)
         /*.apply {
             if (userAuthenticationRequired) {
@@ -302,9 +315,13 @@ class MainViewModel: ViewModel() {
         .setRandomizedEncryptionRequired(true)
         .build()
 
-    private fun generateKey(alias: String, userAuthenticationRequired: Boolean = false): SecretKey =
+    private fun generateKey(
+        alias: String,
+        unlockedDeviceRequired: Boolean,
+        userAuthenticationRequired: Boolean = false
+    ): SecretKey =
         KeyGenerator.getInstance(KEY_ALGORITHM).run {
-            val keyGenParameterSpec = createKeyGenParameterSpec(alias, userAuthenticationRequired)
+            val keyGenParameterSpec = createKeyGenParameterSpec(alias, unlockedDeviceRequired, userAuthenticationRequired)
             init(keyGenParameterSpec)
             generateKey()
         }
