@@ -82,6 +82,7 @@ class MainActivity : AppCompatActivity() {
                                 )
                             }
                         }
+                        else -> { /* Canceled, DO NOTHING */ }
                     }
                 }
 
@@ -315,7 +316,7 @@ class MainActivity : AppCompatActivity() {
         title: String,
         cryptoObject: BiometricPrompt.CryptoObject? = null,
     ) = AuthenticationRequest.biometricRequest(title,
-        authFallback = AuthenticationRequest.Biometric.Fallback.NegativeButton("Cancel")
+        AuthenticationRequest.Biometric.Fallback.CustomOption("Cancel")
     ) {
         if (cryptoObject != null) {
             setMinStrength(AuthenticationRequest.Biometric.Strength.Class3(cryptoObject))
